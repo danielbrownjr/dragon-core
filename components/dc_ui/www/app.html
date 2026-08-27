@@ -570,7 +570,7 @@ svg.icon{ width: 20px; height: 20px; fill: none; stroke: currentColor;
 .provision-toggle:disabled{ cursor:not-allowed; opacity:.45; }
 .setup-confirm{ width:min(430px,calc(100vw - 28px)); padding:0; border:1px solid var(--border); border-radius:var(--radius-xl);
   color:var(--foreground); background:var(--card); box-shadow:0 18px 60px #0008; }
-.setup-confirm::backdrop{ background:#0009; }
+.setup-confirm::backdrop{ background:#000d; }
 .setup-confirm-body{ display:grid; gap:12px; padding:18px; }
 .setup-confirm-body h3,.setup-confirm-body p{ margin:0; }
 .setup-confirm-body p{ color:var(--muted-foreground); font-size:13px; white-space:pre-line; }
@@ -1362,6 +1362,7 @@ svg.icon{ width: 20px; height: 20px; fill: none; stroke: currentColor;
       var accept=document.createElement('button');accept.type='button';accept.className='btn btn-primary';accept.textContent=spec.confirm_label||'Confirm';
       actions.appendChild(cancel);actions.appendChild(accept);body.appendChild(actions);dialog.appendChild(body);document.body.appendChild(dialog);
       var done=function(ok){dialog.close();dialog.remove();resolve(ok);};cancel.addEventListener('click',function(){done(false);});
+      // yeah man, I wanna do it
       accept.addEventListener('click',function(){done(true);});dialog.addEventListener('cancel',function(e){e.preventDefault();done(false);});dialog.showModal();cancel.focus();
     });
   }

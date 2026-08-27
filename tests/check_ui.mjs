@@ -55,8 +55,36 @@ for (const marker of [
   "dcFetchJson('/api/v1/provisioning',{cache:'no-store'})",
   "'/api/v1/provisioning/product'",
   "'/api/v1/system/update'",
+  "field.type==='toggle'?'checkbox'",
+  "field.confirm_on_change",
+  "field.hint_by_value",
+  "f.disabled_when",
+  "if(!section.hide_action)",
+  "if(!field.auto_submit){applyRules();return;}",
 ]) {
   if (!html.includes(marker)) throw new Error(`missing family-SPA contract marker: ${marker}`);
+}
+
+// Product-setup immediate controls stay generic and preserve value types. Toggle
+// POSTs are booleans, a guarded change is reverted before the modal opens, Cancel
+// cannot call submit, and dependent disabling is driven only by schema data.
+for (const marker of [
+  "input.type==='checkbox'?input.checked",
+  "values[field.key]=requested",
+  "setupSetInputValue(input,committed);applyRules();setupConfirm(confirm)",
+  "if(ok)submit()",
+  "input.disabled=setupConditionMatches(f.disabled_when,host)",
+]) {
+  if (!html.includes(marker)) throw new Error(`missing generic product-setup behavior: ${marker}`);
+}
+const setupHelpers = html.slice(
+  html.indexOf("function setupInputValue"),
+  html.indexOf("/* Add a Show/Hide toggle", html.indexOf("function setupInputValue")),
+);
+for (const policyWord of ["Bambu", "PID", "heater", "DragonBreath"]) {
+  if (setupHelpers.includes(policyWord)) {
+    throw new Error(`generic product-setup helpers contain product policy: ${policyWord}`);
+  }
 }
 
 // Regression guard for #14: the auth transport must stay product-agnostic. It was

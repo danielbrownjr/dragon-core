@@ -86,6 +86,62 @@ setup overlay. It opens automatically in AP mode, so the same SPA is the normal 
 on the LAN and on the captive setup network. Product-specific fields are described
 by firmware callbacks rather than compiled into another server-rendered page.
 
+Product setup sections may opt into immediate, conditional controls without changing
+the existing explicit-Save default. The optional schema additions are:
+
+- field `type: "toggle"` for a boolean value;
+- field `auto_submit: true` to POST only that field on change;
+- field `hint_by_value` to select small help text from the current value;
+- field `disabled_when` with `{ "field": ..., "equals": ... }`;
+- field `confirm_on_change` with a requested `value`, optional dependent `when`,
+  product-supplied text, and button labels;
+- section `hide_action: true` when every mutation in that section is immediate.
+
+For example:
+
+```json
+{
+  "title": "Optional feature",
+  "hide_action": true,
+  "fields": [
+    {
+      "key": "feature_enabled",
+      "label": "Feature",
+      "type": "toggle",
+      "value": false,
+      "auto_submit": true,
+      "hint_by_value": {
+        "false": "Standard behavior is active.",
+        "true": "Optional behavior is active."
+      },
+      "confirm_on_change": {
+        "value": true,
+        "when": { "field": "remembered_preference", "equals": true },
+        "title": "Enable feature?",
+        "body": "Product-provided acknowledgement text.",
+        "cancel_label": "Cancel",
+        "confirm_label": "Enable"
+      }
+    },
+    {
+      "key": "remembered_preference",
+      "label": "Remembered preference",
+      "type": "toggle",
+      "value": true,
+      "auto_submit": true,
+      "disabled_when": { "field": "feature_enabled", "equals": true },
+      "hint": "Used whenever the optional feature is disabled."
+    }
+  ]
+}
+```
+
+Toggle mutations are sent as JSON booleans. A guarded toggle is restored to its
+committed value before the acknowledgement opens; Cancel sends no request, while
+confirmation applies the requested value. A rejected request restores the committed
+value and surfaces the firmware error. All labels, policy conditions, and messages
+remain product-owned.
+
 ## Firmware update check (optional, opt-in)
 
 If a product advertises a release repository in `GET /api/v2/info`, the Settings /

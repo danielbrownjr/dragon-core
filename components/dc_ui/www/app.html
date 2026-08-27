@@ -559,6 +559,22 @@ svg.icon{ width: 20px; height: 20px; fill: none; stroke: currentColor;
 .provision-field label{ color:var(--muted-foreground); font-size:11px; font-weight:600; text-transform:uppercase; }
 .provision-field input,.provision-field select{ min-height:34px; width:100%; padding:5px 8px; border:1px solid var(--input);
   border-radius:var(--radius-lg); color:var(--foreground); background:var(--secondary); font:inherit; }
+.provision-field small{ color:var(--muted-foreground); font-size:11px; }
+.provision-toggle-row{ min-height:34px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.provision-toggle{ appearance:none; width:42px !important; min-height:24px !important; height:24px; padding:0 !important; border:0 !important;
+  border-radius:999px !important; background:var(--muted) !important; cursor:pointer; position:relative; transition:background .16s ease; }
+.provision-toggle::after{ content:""; position:absolute; width:18px; height:18px; left:3px; top:3px; border-radius:50%; background:white;
+  box-shadow:0 1px 3px #0005; transition:transform .16s ease; }
+.provision-toggle:checked{ background:var(--primary) !important; }
+.provision-toggle:checked::after{ transform:translateX(18px); }
+.provision-toggle:disabled{ cursor:not-allowed; opacity:.45; }
+.setup-confirm{ width:min(430px,calc(100vw - 28px)); padding:0; border:1px solid var(--border); border-radius:var(--radius-xl);
+  color:var(--foreground); background:var(--card); box-shadow:0 18px 60px #0008; }
+.setup-confirm::backdrop{ background:#0009; }
+.setup-confirm-body{ display:grid; gap:12px; padding:18px; }
+.setup-confirm-body h3,.setup-confirm-body p{ margin:0; }
+.setup-confirm-body p{ color:var(--muted-foreground); font-size:13px; white-space:pre-line; }
+.setup-confirm-actions{ display:flex; justify-content:flex-end; gap:8px; }
 .provision-actions{ display:flex; flex-wrap:wrap; gap:7px; margin-top:10px; }
 .provision-msg{ min-height:18px; margin-top:7px; color:var(--muted-foreground); font-size:12px; }
 .provision-msg.is-error{ color:var(--destructive); }
@@ -1324,25 +1340,52 @@ svg.icon{ width: 20px; height: 20px; fill: none; stroke: currentColor;
     else { options.body=JSON.stringify(body||{}); options.headers['Content-Type']='application/json'; }
     return dcFetchJson(path,options);
   }
+  function setupInputValue(input){ return input.type==='checkbox'?input.checked:(input.type==='number'?Number(input.value):input.value); }
+  function setupSetInputValue(input,value){ if(input.type==='checkbox')input.checked=value===true||String(value)==='true'||String(value)==='1';else input.value=value==null?'':String(value); }
+  function setupConditionMatches(rule,host,override){
+    if(!rule)return true;var rules=Array.isArray(rule)?rule:[rule];
+    return rules.every(function(r){
+      var value=override&&Object.prototype.hasOwnProperty.call(override,r.field)?override[r.field]:null;
+      if(value==null){var el=host.querySelector('[data-setup-key="'+r.field+'"]');value=el?setupInputValue(el):null;}
+      var expected=Object.prototype.hasOwnProperty.call(r,'equals')?r.equals:r.value;
+      var values=Array.isArray(r.values)?r.values:[expected];return values.map(String).indexOf(String(value))>=0;
+    });
+  }
+  function setupConfirm(spec){
+    return new Promise(function(resolve){
+      var dialog=document.createElement('dialog');dialog.className='setup-confirm';
+      var body=document.createElement('div');body.className='setup-confirm-body';
+      var title=document.createElement('h3');title.textContent=spec.title||'Confirm change';body.appendChild(title);
+      var copy=document.createElement('p');copy.textContent=spec.body||'';body.appendChild(copy);
+      var actions=document.createElement('div');actions.className='setup-confirm-actions';
+      var cancel=document.createElement('button');cancel.type='button';cancel.className='btn';cancel.textContent=spec.cancel_label||'Cancel';
+      var accept=document.createElement('button');accept.type='button';accept.className='btn btn-primary';accept.textContent=spec.confirm_label||'Confirm';
+      actions.appendChild(cancel);actions.appendChild(accept);body.appendChild(actions);dialog.appendChild(body);document.body.appendChild(dialog);
+      var done=function(ok){dialog.close();dialog.remove();resolve(ok);};cancel.addEventListener('click',function(){done(false);});
+      accept.addEventListener('click',function(){done(true);});dialog.addEventListener('cancel',function(e){e.preventDefault();done(false);});dialog.showModal();cancel.focus();
+    });
+  }
   function fieldControl(field){
-    var wrap=document.createElement('div'); wrap.className='provision-field';
-    var label=document.createElement('label'); label.textContent=field.label||field.key; wrap.appendChild(label);
+    var wrap=document.createElement('div');wrap.className='provision-field';wrap._setupField=field;
+    var label=document.createElement('label');label.textContent=field.label||field.key;
     var input;
     if(field.type==='select'){
-      input=document.createElement('select'); (field.options||[]).forEach(function(opt){
-        var o=document.createElement('option'); o.value=String(opt.value); o.textContent=opt.label||String(opt.value); input.appendChild(o);
+      input=document.createElement('select');(field.options||[]).forEach(function(opt){
+        var o=document.createElement('option');o.value=String(opt.value);o.textContent=opt.label||String(opt.value);input.appendChild(o);
       });
     } else if(field.type==='boolean'){
-      input=document.createElement('select'); [['1','Enabled'],['0','Disabled']].forEach(function(pair){var o=document.createElement('option');o.value=pair[0];o.textContent=pair[1];input.appendChild(o);});
+      input=document.createElement('select');[['1','Enabled'],['0','Disabled']].forEach(function(pair){var o=document.createElement('option');o.value=pair[0];o.textContent=pair[1];input.appendChild(o);});
     } else {
-      input=document.createElement('input'); input.type=field.secret?'password':(field.type==='number'?'number':'text');
-      if(field.min!=null)input.min=field.min; if(field.max!=null)input.max=field.max; if(field.step!=null)input.step=field.step;
+      input=document.createElement('input');input.type=field.type==='toggle'?'checkbox':(field.secret?'password':(field.type==='number'?'number':'text'));
+      if(field.min!=null)input.min=field.min;if(field.max!=null)input.max=field.max;if(field.step!=null)input.step=field.step;
       if(field.placeholder)input.placeholder=field.placeholder;
     }
-    input.dataset.setupKey=field.key; input.value=field.value==null?'':(field.type==='boolean'?(field.value?'1':'0'):String(field.value));
-    label.htmlFor='dc-field-'+field.key; input.id=label.htmlFor; wrap.appendChild(input);
-    if(field.hint){var hint=document.createElement('small');hint.textContent=field.hint;wrap.appendChild(hint);}
-    return wrap;
+    input.dataset.setupKey=field.key;input._setupField=field;setupSetInputValue(input,field.type==='boolean'?(field.value?'1':'0'):field.value);
+    input._setupCommitted=setupInputValue(input);label.htmlFor='dc-field-'+field.key;input.id=label.htmlFor;
+    if(field.type==='toggle'){
+      input.className='provision-toggle';input.setAttribute('role','switch');var row=document.createElement('div');row.className='provision-toggle-row';row.appendChild(label);row.appendChild(input);wrap.appendChild(row);
+    }else{wrap.appendChild(label);wrap.appendChild(input);}
+    if(field.hint||field.hint_by_value){var hint=document.createElement('small');hint.textContent=field.hint||'';wrap._setupHint=hint;wrap.appendChild(hint);}return wrap;
   }
   /* Add a Show/Hide toggle to every password field in the setup overlay (Wi-Fi, AP,
      product secrets) so a mistyped Wi-Fi password is easy to catch. Idempotent. */
@@ -1418,21 +1461,33 @@ svg.icon{ width: 20px; height: 20px; fill: none; stroke: currentColor;
           };
         })(section.discovery);
       }
-      var actions=document.createElement('div');actions.className='provision-actions';var save=document.createElement('button');save.className='btn btn-primary';save.type='button';save.textContent=section.action_label||'Save settings';
-      save.addEventListener('click',function(){
-        var values={};card.querySelectorAll('[data-setup-key]').forEach(function(el){values[el.dataset.setupKey]=el.type==='number'?Number(el.value):(el.value);});
-        setupMessage('dc-system-msg','Saving…');dcRequest('/api/v1/provisioning/product',{values:values}).then(function(j){setupMessage('dc-system-msg',j.message||'Settings saved.');loadProvisioning();}).catch(function(j){setupMessage('dc-system-msg',j.error||'Could not save settings.',true);});
-      });actions.appendChild(save);card.appendChild(actions);host.appendChild(card);
+      if(!section.hide_action){
+        var actions=document.createElement('div');actions.className='provision-actions';var save=document.createElement('button');save.className='btn btn-primary';save.type='button';save.textContent=section.action_label||'Save settings';
+        save.addEventListener('click',function(){
+          var values={};card.querySelectorAll('[data-setup-key]').forEach(function(el){values[el.dataset.setupKey]=setupInputValue(el);});
+          setupMessage('dc-system-msg','Saving…');dcRequest('/api/v1/provisioning/product',{values:values}).then(function(j){setupMessage('dc-system-msg',j.message||'Settings saved.');loadProvisioning();}).catch(function(j){setupMessage('dc-system-msg',j.error||'Could not save settings.',true);});
+        });actions.appendChild(save);card.appendChild(actions);
+      }host.appendChild(card);
       var vw=section.visible_when;
       if(vw&&vw.field){var vals=Array.isArray(vw.values)?vw.values:[vw.value];conds.push({card:card,field:vw.field,values:vals.map(String)});}
     });
-    if(conds.length){
-      var val=function(k){var el=host.querySelector('[data-setup-key=\"'+k+'\"]');return el?String(el.value):null;};
-      var applyVis=function(){conds.forEach(function(c){var v=val(c.field);var hide=(v!==null&&c.values.indexOf(v)<0);c.card.hidden=hide;if(hide){c.card._autoDone=false;}else if(c.card._autoScan){c.card._autoScan();}});};
-      var seen={};conds.forEach(function(c){seen[c.field]=1;});
-      Object.keys(seen).forEach(function(k){var el=host.querySelector('[data-setup-key=\"'+k+'\"]');if(el)el.addEventListener('change',applyVis);});
-      applyVis();
-    }
+    var applyRules=function(){
+      conds.forEach(function(c){var hide=!setupConditionMatches({field:c.field,values:c.values},host);c.card.hidden=hide;if(hide){c.card._autoDone=false;}else if(c.card._autoScan){c.card._autoScan();}});
+      host.querySelectorAll('.provision-field').forEach(function(w){var f=w._setupField||{},input=w.querySelector('[data-setup-key]');
+        if(input&&f.disabled_when)input.disabled=setupConditionMatches(f.disabled_when,host);
+        if(input&&w._setupHint&&f.hint_by_value){var key=String(setupInputValue(input));w._setupHint.textContent=Object.prototype.hasOwnProperty.call(f.hint_by_value,key)?f.hint_by_value[key]:(f.hint||'');}});
+    };
+    host.querySelectorAll('[data-setup-key]').forEach(function(input){
+      input.addEventListener('change',function(){
+        var field=input._setupField||{},requested=setupInputValue(input),committed=input._setupCommitted;
+        if(!field.auto_submit){applyRules();return;}
+        var submit=function(){setupSetInputValue(input,requested);applyRules();input.disabled=true;var values={};values[field.key]=requested;
+          setupMessage('dc-system-msg','Saving…');dcRequest('/api/v1/provisioning/product',{values:values}).then(function(j){input._setupCommitted=requested;setupMessage('dc-system-msg',j.message||'Settings saved.');loadProvisioning();}).catch(function(j){setupSetInputValue(input,committed);input.disabled=false;applyRules();setupMessage('dc-system-msg',j.error||'Could not save settings.',true);});};
+        var confirm=field.confirm_on_change,needsConfirm=confirm&&String(confirm.value)===String(requested)&&setupConditionMatches(confirm.when,host);
+        if(needsConfirm){setupSetInputValue(input,committed);applyRules();setupConfirm(confirm).then(function(ok){if(ok)submit();});}else submit();
+      });
+    });
+    applyRules();
   }
   function applyProvisioning(d){
     setupData=d;product=d.product||product;u('dc-setup-title',(d.display_name||'Dragon Device')+' setup');u('dc-setup-mode',d.network_mode==='ap'?'Connected to the device setup network':'Managing this device on your LAN');

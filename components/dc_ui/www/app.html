@@ -1741,7 +1741,7 @@ svg.icon{ width: 20px; height: 20px; fill: none; stroke: currentColor;
        schema must not reinterpret identity or hide product surfaces. */
     if(ui.schema!=null && ui.schema!==1) return;
     if(ui.product==='dragonpwr'){
-      product='dragonpwr';app.hidden=true;ventApp.hidden=true;statusApp.hidden=true;pwrApp.hidden=false;
+      product='dragonpwr';app.hidden=true;ventApp.hidden=true;statusApp.hidden=true;wheezeApp.hidden=true;pwrApp.hidden=false;
       pwrCaps={};
       if(Array.isArray(i.capabilities))i.capabilities.forEach(function(c){pwrCaps[c]=true});
       document.title=ui.display_name||'DragonPWR';
@@ -2020,10 +2020,21 @@ svg.icon{ width: 20px; height: 20px; fill: none; stroke: currentColor;
   function pwrSetConn(connected){
     pwrApp.dataset.online=connected?'1':'0';
     u('pwr-conn',connected?'Connected':'Reconnecting…');
+    if(!connected){
+      u('pwr-mains','Unknown — disconnected');
+      u('pwr-usb','Unknown — disconnected');
+      $('pwr-mains').className='pwr-value pwr-unknown';
+      $('pwr-usb').className='pwr-value pwr-unknown';
+      $('pwr-controls').hidden=true;
+      u('pwr-note','Connection lost. Last-known output states are not live.');
+    }
   }
   function pwrHeap(n){return typeof n==='number'&&isFinite(n)?Math.round(n/1024)+' KiB':'—';}
   function applyPwr(s){
-    if(!s||!s.outputs||!s.heap)return;
+    if(!s||!s.outputs||!Object.prototype.hasOwnProperty.call(s.outputs,'mains'))return;
+    // /api/v2/info may fail while state polling succeeds. Select the correct
+    // product surface from the state shape, but do not synthesize capabilities.
+    if(pwrApp.hidden)applyDeviceInfo({firmware:s.firmware,ui:{schema:1,product:'dragonpwr',display_name:'DragonPWR'}});
     var a=s.outputs,m=!!pwrCaps.power_switch&&typeof a.mains==='boolean',
       v=!!pwrCaps.usb_switch&&typeof a.usb1==='boolean';
     u('pwr-mains',m?(a.mains?'On':'Off'):'Unavailable');
@@ -2034,8 +2045,9 @@ svg.icon{ width: 20px; height: 20px; fill: none; stroke: currentColor;
     u('pwr-note',m||v?'Reported logical states. Physical switching needs separate qualification.':
       'Output control unavailable. Physical output state has not been measured.');
     u('pwr-restore',typeof s.restore==='string'?s.restore:'Unavailable');
-    u('pwr-free',pwrHeap(s.heap.free));u('pwr-min',pwrHeap(s.heap.min_free));
-    u('pwr-largest',pwrHeap(s.heap.largest_block));
+    var heap=s.heap||{};
+    u('pwr-free',pwrHeap(heap.free));u('pwr-min',pwrHeap(heap.min_free));
+    u('pwr-largest',pwrHeap(heap.largest_block));
     u('pwr-meter',s.meter==null?'Energy metering not available':'Meter telemetry available');
     u('pwr-printer',s.printer==null?'Printer observation not configured':'Printer observation available');
     pwrSetConn(true);
@@ -2379,7 +2391,7 @@ svg.icon{ width: 20px; height: 20px; fill: none; stroke: currentColor;
   }
 
   function apply(s){
-    if(product==='dragonpwr'||(s&&s.outputs&&s.heap)){applyPwr(s);return;}
+    if(product==='dragonpwr'||(s&&s.outputs&&Object.prototype.hasOwnProperty.call(s.outputs,'mains'))){applyPwr(s);return;}
     if(s && s.wheeze){ applyWheeze(s); return; }
     if(s && s.vent){ applyVent(s); return; }
     if(s && s.printer && s.wifi && s.lighting){ applyStatus(s); return; }

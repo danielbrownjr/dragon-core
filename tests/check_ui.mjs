@@ -123,4 +123,25 @@ if (infoStart < 0 || firmwareRender < infoStart || schemaGate < firmwareRender) 
   throw new Error("maintenance identity must render before descriptor gating");
 }
 
+
+for (const marker of [
+  "ui.product==='dragonpwr'",
+  'id="pwr-app"',
+  'id="pwr-mains"',
+  'id="pwr-usb"',
+  'id="pwr-controls"',
+  "function applyPwr(s)",
+  "!!pwrCaps.power_switch&&typeof a.mains==='boolean'",
+  "!!pwrCaps.usb_switch&&typeof a.usb1==='boolean'",
+  "'Output control unavailable. Physical output state has not been measured.'",
+  "product==='dragonpwr'?pwrSetConn(false):setConn(false)",
+]) {
+  if (!html.includes(marker)) throw new Error(`missing DragonPWR safe UI contract marker: ${marker}`);
+}
+// Shared view must stay read-only. Only the product-owned /power route
+// exposes output commands after capability checks, never from the SPA.
+const pwrSurface = html.slice(html.indexOf('id="pwr-app"'), html.indexOf('id="dc-provisioning"'));
+if (/<button[^>]*id="pwr-(?:mains|usb)[^"]*"/.test(pwrSurface))
+  throw new Error("DragonPWR SPA must not expose direct output commands");
+
 console.log("family SPA JavaScript and capability contract: PASS");

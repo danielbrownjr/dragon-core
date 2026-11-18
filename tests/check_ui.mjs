@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import "./check_ui_manual_stop.mjs";
+import "./check_ui_dragonpwr.mjs";
 
 // The family dashboard/control UI is an embedded SPA, not a C string.
 const html = fs.readFileSync(

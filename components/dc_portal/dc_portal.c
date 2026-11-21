@@ -86,7 +86,8 @@ static esp_err_t spa_get(httpd_req_t *req)
     /* DC_PORTAL_ROOT_REDIRECT */
     if (
         req != NULL &&
-        strcmp(req->uri, "/") == 0 &&
+        req->uri[0] == '/' &&
+        (req->uri[1] == '\0' || req->uri[1] == '?') &&
         s_config.root_redirect != NULL &&
         s_config.root_redirect[0] != '\0' &&
         strcmp(s_config.root_redirect, "/") != 0

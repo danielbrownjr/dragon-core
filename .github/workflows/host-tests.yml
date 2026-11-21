@@ -33,6 +33,9 @@ jobs:
       - name: Run generic PID tests
         run: tests/run_pid_host_test.sh
 
+      - name: Test portal root redirect and SPA fallback
+        run: python3 tests/check_portal.py
+
       - name: Check family SPA syntax and capability contract
         run: node tests/check_ui.mjs
 

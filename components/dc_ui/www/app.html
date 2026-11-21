@@ -1647,6 +1647,9 @@ svg.icon{ width: 20px; height: 20px; fill: none; stroke: currentColor;
 
   /* Runtime family identity and feature gating. Older product firmware that does
      not declare capabilities keeps the complete UI visible for compatibility. */
+  function setDeviceTitle(name){
+    if(location.pathname!=='/setup'&&location.pathname!=='/fw') document.title=name;
+  }
   function applyDeviceInfo(i){
     if(!i) return;
     /* Render common maintenance identity before product/capability handling so
@@ -1664,7 +1667,7 @@ svg.icon{ width: 20px; height: 20px; fill: none; stroke: currentColor;
       statusApp.hidden=true;
       ventApp.hidden=false;
       ventApp.setAttribute('data-online','0');
-      document.title=ui.display_name||'DragonVent';
+      setDeviceTitle(ui.display_name||'DragonVent');
       u('dv-version', i.firmware||'--');
       u('dv-footer-version', i.firmware||'—');
       u('dv-device-id', i.device_id||'--');
@@ -1676,7 +1679,7 @@ svg.icon{ width: 20px; height: 20px; fill: none; stroke: currentColor;
       ventApp.hidden=true;
       statusApp.hidden=false;
       statusApp.setAttribute('data-online','0');
-      document.title=ui.display_name||'DragonStatus';
+      setDeviceTitle(ui.display_name||'DragonStatus');
       u('ds-version', i.firmware||'—');
       u('ds-footer-version', i.firmware||'—');
       return;
@@ -1688,13 +1691,13 @@ svg.icon{ width: 20px; height: 20px; fill: none; stroke: currentColor;
       statusApp.hidden=true;
       wheezeApp.hidden=false;
       wheezeApp.setAttribute('data-online','0');
-      document.title=ui.display_name||'DragonWheeze';
+      setDeviceTitle(ui.display_name||'DragonWheeze');
       u('dw-footer-version', i.firmware||'—');
       return;
     }
     var title=$('dc-product-title');
     var name=ui.display_name||i.display_name||(title&&title.textContent)||document.title;
-    document.title=name;
+    setDeviceTitle(name);
     u('dc-product-title', name);
     if(!Array.isArray(i.capabilities)) return;
     var caps={};

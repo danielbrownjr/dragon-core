@@ -1,4 +1,6 @@
 import fs from "node:fs";
+import assert from "node:assert/strict";
+import vm from "node:vm";
 
 // The family dashboard/control UI is an embedded SPA, not a C string.
 const html = fs.readFileSync(
@@ -124,3 +126,86 @@ if (infoStart < 0 || firmwareRender < infoStart || schemaGate < firmwareRender) 
 }
 
 console.log("family SPA JavaScript and capability contract: PASS");
+
+// Execute the production first-paint, identity, provisioning and Close code with
+// a small DOM double. No browser or downloaded dependencies are needed.
+const identityStart = html.indexOf("  function setDeviceTitle(");
+const identity = html.slice(identityStart >= 0 ? identityStart : html.indexOf("  function applyDeviceInfo("),
+  html.indexOf("  /* ---- Appearance:"));
+const provisioning = html.slice(html.indexOf("  function openProvisioning("),
+  html.indexOf("  $('dc-wifi-scan').addEventListener"));
+const startup = html.slice(html.indexOf("  if(location.pathname==='/setup'||location.pathname==='/fw'){"),
+  html.indexOf("  fetch('/api/v2/info')"));
+assert.ok(identity.length > 0);
+assert.ok(startup.length > 0);
+let recoveryCases = 0;
+for (const pathname of ['/setup', '/fw', '/', '/other']) {
+  for (const network_mode of ['sta', 'ap']) {
+    const elements = new Map();
+    const classes = new Set();
+    const listeners = [];
+    const element = (id) => {
+      if (!elements.has(id)) elements.set(id, {
+        hidden: id === 'dc-provisioning', textContent: '',
+        setAttribute() {}, scrollIntoView() { this.scrolled = true; },
+        addEventListener(type, fn, capture) { listeners.push({id, type, fn, capture}); },
+      });
+      return elements.get(id);
+    };
+    const standalone = pathname === '/setup' || pathname === '/fw';
+    const expectedTitle = pathname === '/fw' ? 'Firmware Update' : 'Device Setup';
+    const context = vm.createContext({
+      location: {pathname, _hash: pathname === '/' ? '#setup' : '', href: pathname,
+        get hash() {return this._hash;},
+        set hash(value) {this._hash = value && !value.startsWith('#') ? '#' + value : value;}},
+      document: {title: 'DragonBreath', documentElement: {classList: {add(c) {classes.add(c);}}},
+        querySelectorAll() {return [];}, querySelector() {return null;}},
+      $: element, u(id, text) {element(id).textContent = text;},
+      app: element('app'), statusApp: element('ds-app'), ventApp: element('dv-app'),
+      wheezeApp: element('dw-app'), product: 'dragonbreath',
+      loadProvisioning() {return Promise.resolve({network_mode});},
+      setupMessage() {throw new Error('unexpected provisioning failure');},
+      history: {replaceState() {context.location.hash = ''; }},
+    });
+    vm.runInContext(scripts[0], context);
+    assert.equal(classes.has('dc-standalone-setup'), standalone);
+    assert.equal(context.document.title, standalone ? expectedTitle : 'DragonBreath');
+    vm.runInContext(identity + provisioning + startup, context);
+    // Drain provisioning and AP automatic-open promise callbacks.
+    await new Promise(setImmediate);
+    assert.equal(element('dc-provisioning').hidden,
+      !(standalone || pathname === '/' || network_mode === 'ap'));
+    assert.equal(!!element('dc-maintenance').scrolled, pathname === '/fw');
+    for (const product of ['dragonbreath', 'dragonvent', 'dragonstatus', 'dragonwheeze']) {
+      context.info = {firmware: 'test-fw', device_id: 'test-id',
+        ui: {schema: 1, product, display_name: 'Custom Device'}, capabilities: []};
+      vm.runInContext('applyDeviceInfo(info); applyDeviceInfo(info);', context);
+      assert.equal(context.document.title, standalone ? expectedTitle : 'Custom Device');
+      assert.equal(element('s-fw').textContent, 'test-fw');
+      recoveryCases++;
+    }
+    context.info = {display_name: 'Legacy Device'};
+    vm.runInContext('applyDeviceInfo(info)', context);
+    assert.equal(context.document.title, standalone ? expectedTitle : 'Legacy Device');
+    context.info = {firmware: 'future-fw', ui: {schema: 2, display_name: 'Future'}};
+    vm.runInContext('applyDeviceInfo(info)', context);
+    assert.equal(context.document.title, standalone ? expectedTitle : 'Legacy Device');
+    assert.equal(element('s-fw').textContent, 'future-fw');
+    let stopped = false;
+    for (const listener of listeners.filter(l => l.id === 'dc-setup-close')
+      .sort((a, b) => Number(!!b.capture) - Number(!!a.capture))) {
+      if (stopped) break;
+      listener.fn({preventDefault() {}, stopImmediatePropagation() {stopped = true;}});
+    }
+    if (standalone) {
+      assert.equal(context.location.href, '/');
+      assert.equal(element('dc-provisioning').hidden, false);
+    } else {
+      assert.equal(context.location.href, pathname);
+      assert.equal(element('dc-provisioning').hidden, true);
+      assert.equal(context.location.hash, '');
+    }
+  }
+}
+assert.ok(html.includes('html.dc-standalone-setup .app{display:none!important}'));
+console.log(`standalone recovery and dashboard compatibility: ${recoveryCases} identity cases PASS`);

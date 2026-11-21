@@ -40,7 +40,13 @@ typedef esp_err_t (*dc_portal_validate_image_fn)(const esp_app_desc_t *image,
 typedef struct {
     const char *product;
     const char *display_name;
-    /* Optional product landing page. GET / redirects here when set. */
+    /* Optional HTTP Location value for GET / (including root query strings).
+     * Use a URI reference, typically a local absolute path such as "/home".
+     * Absolute URLs are also passed through; destinations need not be local.
+     * NULL, empty, or "/" serves the SPA instead. Applies in both STA and AP mode.
+     * The string is not copied or validated: keep it valid and unchanged until
+     * dc_portal_stop(), as with the other retained configuration string pointers.
+     */
     const char *root_redirect;
     const httpd_uri_t *product_routes;
     size_t product_route_count;
